@@ -525,6 +525,11 @@ int DeRestPluginPrivate::setLightState(const ApiRequest &req, ApiResponse &rsp)
        
         bool dirUp = false; 
 	quint8 rate = 0xff;
+        if(taskRef.lightNode->isLevelActive())
+        {
+        	direction = "stop";
+        }
+
         if(direction == "up")
         {
 		dirUp = true;
@@ -534,11 +539,11 @@ int DeRestPluginPrivate::setLightState(const ApiRequest &req, ApiResponse &rsp)
 		rate = 0;
 	}
         
-	if(direction == "up" || direction == "down" || direction == "stop")
+	if(direction == "up" || direction == "down")
         { 
                 TaskItem task;
                 copyTaskReq(taskRef, task);
-		if(addTaskMoveLevel(task, false, dirUp, rate))
+		if(addTaskSetOnOff(task, dirUp ? ONOFF_COMMAND_ON : ONOFF_COMMAND_OFF, 0))
 		{
 	                QVariantMap rspItem;
 	                QVariantMap rspItemState;
@@ -546,13 +551,29 @@ int DeRestPluginPrivate::setLightState(const ApiRequest &req, ApiResponse &rsp)
 	                rspItem["success"] = rspItemState;
 	                rsp.list.append(rspItem);
 	                taskToLocalData(task);
+                        taskRef.lightNode->setLevelActive(true);
 		}
 		else
 		{
 	                rsp.list.append(errorToMap(ERR_INTERNAL_ERROR, QString("/lights/%1").arg(id), QString("Internal error, %1").arg(ERR_BRIDGE_BUSY)));
 		}
 	}
-	else
+	else if(direction == "stop")
+        {
+                TaskItem task;
+                copyTaskReq(taskRef, task);
+		if(addTaskMoveLevel(task, false, dirUp, 0))
+		{
+	                QVariantMap rspItem;
+	                QVariantMap rspItemState;
+	                rspItemState[QString("/lights/%1/state/level").arg(id)] = direction;
+	                rspItem["success"] = rspItemState;
+	                rsp.list.append(rspItem);
+	                taskToLocalData(task);
+                        taskRef.lightNode->setLevelActive(false);
+		}
+	}
+        else 
 	{
             rsp.list.append(errorToMap(ERR_INVALID_VALUE, QString("/lights/%1/state/level").arg(id), QString("invalid value, %1, for parameter, level").arg(map["level"].toString())));
             rsp.httpStatus = HttpStatusBadRequest;
